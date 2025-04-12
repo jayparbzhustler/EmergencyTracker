@@ -8,8 +8,8 @@ import BottomNavigation from '@/components/bottom-navigation';
 import FirstRunModal from '@/components/first-run-modal';
 import { formatDateTime } from '@/lib/utils';
 import { apiRequest } from '@/lib/queryClient';
-import { useQuery } from '@tanstack/react-query';
-import type { Settings } from '@shared/schema';
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
+import type { Settings, Scan } from '@shared/schema';
 
 export default function Home() {
   const [location, navigate] = useLocation();
@@ -40,8 +40,9 @@ export default function Home() {
   }, [location, toast]);
 
   // Fetch settings to determine if this is first run
-  const { data: settings } = useQuery({
+  const { data: settings } = useQuery<Settings, Error>({
     queryKey: ['/api/settings'],
+    retry: false,
     onError: () => {
       setShowFirstRunModal(true);
     }
@@ -49,14 +50,15 @@ export default function Home() {
 
   // Check for first run
   useEffect(() => {
-    if (settings && !settings.notificationEmail) {
+    if (!settings || !settings.notificationEmail) {
       setShowFirstRunModal(true);
     }
   }, [settings]);
 
   // Fetch last scan data
-  const { data: lastScan } = useQuery({
+  const { data: lastScan } = useQuery<Scan, Error>({
     queryKey: ['/api/scans/latest'],
+    retry: false
   });
 
   const handleScanStart = () => {
