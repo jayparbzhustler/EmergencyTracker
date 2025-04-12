@@ -13,14 +13,11 @@ import { apiRequest } from '@/lib/queryClient';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function CameraPage() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
-  // Check if in quick snap mode
-  const isQuickMode = location.includes('?mode=quick');
   
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -34,30 +31,13 @@ export default function CameraPage() {
   // Request camera permission on mount
   useEffect(() => {
     requestCameraPermission();
-    
-    // Automatically capture image if in quick mode
-    // Wait a bit for camera to initialize
-    if (isQuickMode) {
-      const timer = setTimeout(() => {
-        captureImage();
-      }, 1500);
-      
-      return () => {
-        clearTimeout(timer);
-        // Clean up stream
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-      };
-    }
-    
     return () => {
       // Clean up stream when component unmounts
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [isQuickMode, stream]);
+  }, []);
 
   const requestCameraPermission = async () => {
     try {
@@ -212,16 +192,6 @@ export default function CameraPage() {
 
   return (
     <div className="relative h-full w-full bg-black">
-      {/* Quick Mode Indicator */}
-      {isQuickMode && !isScanning && !showExitOptions && (
-        <div className="absolute top-0 left-0 right-0 bg-amber-500 text-white text-center py-2 z-20">
-          <div className="flex items-center justify-center">
-            <span className="mr-2">⚡</span>
-            <span>Quick Snap Mode</span>
-          </div>
-        </div>
-      )}
-    
       <CameraFeed 
         videoRef={videoRef}
         canvasRef={canvasRef}

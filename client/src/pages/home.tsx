@@ -8,7 +8,7 @@ import BottomNavigation from '@/components/bottom-navigation';
 import FirstRunModal from '@/components/first-run-modal';
 import { formatDateTime } from '@/lib/utils';
 import { apiRequest } from '@/lib/queryClient';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 import type { Settings, Scan } from '@shared/schema';
 
 export default function Home() {
@@ -40,20 +40,23 @@ export default function Home() {
   }, [location, toast]);
 
   // Fetch settings to determine if this is first run
-  const { data: settings, error: settingsError } = useQuery<Settings>({
+  const { data: settings } = useQuery<Settings, Error>({
     queryKey: ['/api/settings'],
-    retry: false
+    retry: false,
+    onError: () => {
+      setShowFirstRunModal(true);
+    }
   });
 
   // Check for first run
   useEffect(() => {
-    if (settingsError || !settings || !settings.notificationEmail) {
+    if (!settings || !settings.notificationEmail) {
       setShowFirstRunModal(true);
     }
-  }, [settings, settingsError]);
+  }, [settings]);
 
   // Fetch last scan data
-  const { data: lastScan } = useQuery<Scan>({
+  const { data: lastScan } = useQuery<Scan, Error>({
     queryKey: ['/api/scans/latest'],
     retry: false
   });
@@ -105,29 +108,16 @@ export default function Home() {
           <p className="text-gray-600">Scan and detect blocked emergency exits in your facility</p>
         </div>
         
-        <div className="flex flex-col space-y-4">
-          <Button 
-            onClick={handleScanStart}
-            size="xxl"
-            className={`shadow-lg ${isExitClear ? 'bg-green-600 hover:bg-green-700' : ''}`}
-          >
-            <div className="flex flex-col items-center">
-              <span className="material-icons text-5xl mb-2">camera_alt</span>
-              <span>Check Exits</span>
-            </div>
-          </Button>
-          
-          <Button 
-            onClick={() => navigate('/camera?mode=quick')}
-            variant="outline"
-            className="shadow-md border-2 border-primary"
-          >
-            <div className="flex items-center">
-              <span className="mr-2">⚡</span>
-              <span>Quick Snap</span>
-            </div>
-          </Button>
-        </div>
+        <Button 
+          onClick={handleScanStart}
+          size="xxl"
+          className={`shadow-lg ${isExitClear ? 'bg-green-600 hover:bg-green-700' : ''}`}
+        >
+          <div className="flex flex-col items-center">
+            <span className="material-icons text-5xl mb-2">camera_alt</span>
+            <span>Check Exits</span>
+          </div>
+        </Button>
         
         <div className="flex flex-col items-center text-gray-600 space-y-2">
           <p>Last scan: {lastScan ? formatDateTime(new Date(lastScan.timestamp)) : 'No previous scans'}</p>
