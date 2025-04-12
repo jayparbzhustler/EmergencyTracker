@@ -40,18 +40,27 @@ export default function Home() {
   }, [location, toast]);
 
   // Fetch settings to determine if this is first run
-  const { data: settings } = useQuery<Settings, Error>({
+  const { data: settings, error: settingsError } = useQuery<Settings>({
     queryKey: ['/api/settings'],
-    retry: false,
-    onError: () => {
+    retry: false
+  });
+  
+  // Check for settings error
+  useEffect(() => {
+    if (settingsError) {
       setShowFirstRunModal(true);
     }
-  });
+  }, [settingsError]);
 
-  // Check for first run
+  // Check for first run - but only show once
   useEffect(() => {
-    if (!settings || !settings.notificationEmail) {
+    // Only show the modal if settings is undefined (not fetched yet) 
+    // and no previous values exist in the database
+    if (settings === undefined && !localStorage.getItem('settings_configured')) {
       setShowFirstRunModal(true);
+    } else if (settings) {
+      // Mark as configured in localStorage to avoid showing modal again
+      localStorage.setItem('settings_configured', 'true');
     }
   }, [settings]);
 

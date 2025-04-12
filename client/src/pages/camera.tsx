@@ -135,10 +135,15 @@ export default function CameraPage() {
         description: "The exit has been marked as clear"
       });
       
-      // Return to home with success indicator
-      navigate('/?status=clear');
+      // Close options and return to home with success indicator
+      setShowExitOptions(false);
+      
+      // Use the navigate function with absolute path to ensure correct navigation
+      // The leading slash ensures we go to the root with the status parameter
+      window.location.href = '/?status=clear';
       
     } catch (error) {
+      console.error("Error saving clear exit:", error);
       toast({
         title: "Error",
         description: "Failed to save scan",
