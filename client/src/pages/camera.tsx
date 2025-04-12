@@ -1,11 +1,12 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { X, Camera, AlertTriangle } from 'lucide-react';
+import { X, Camera, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import CameraFeed from '@/components/camera-feed';
 import DetectionOverlay from '@/components/detection-overlay';
 import DetectionModal from '@/components/detection-modal';
 import PermissionModal from '@/components/permission-modal';
+import WarningOverlay from '@/components/warning-overlay';
 import { useToast } from '@/hooks/use-toast';
 import { detectObjects } from '@/lib/object-detection';
 import { apiRequest } from '@/lib/queryClient';
@@ -24,6 +25,8 @@ export default function CameraPage() {
   const [showDetectionModal, setShowDetectionModal] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [showExitOptions, setShowExitOptions] = useState(false);
 
   // Request camera permission on mount
   useEffect(() => {
@@ -56,11 +59,17 @@ export default function CameraPage() {
   const captureImage = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     
+    // Show scanning warning
+    setIsScanning(true);
+    
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
     
-    if (!context) return;
+    if (!context) {
+      setIsScanning(false);
+      return;
+    }
     
     // Set canvas dimensions to video dimensions
     canvas.width = video.videoWidth;
@@ -85,18 +94,54 @@ export default function CameraPage() {
       setDetectionResults(results);
       setIsBlocked(isExitBlocked);
       
-      if (isExitBlocked) {
-        setShowDetectionModal(true);
-      } else {
-        toast({
-          title: "Scan Complete",
-          description: "No blocked exits detected",
-        });
-      }
+      // Hide scanning indicator and show options
+      setIsScanning(false);
+      setShowExitOptions(true);
+      
     } catch (error) {
+      setIsScanning(false);
       toast({
         title: "Detection Error",
         description: "Failed to analyze image",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Handle "Exit is blocked" option
+  const handleBlockedExit = () => {
+    setShowExitOptions(false);
+    setShowDetectionModal(true);
+  };
+  
+  // Handle "Exit is clear" option
+  const handleClearExit = async () => {
+    try {
+      if (!capturedImage) return;
+      
+      // Save scan record as clear
+      const timestamp = new Date().toISOString();
+      await apiRequest('POST', '/api/scans', {
+        timestamp,
+        blocked: false,
+        imageUrl: capturedImage
+      });
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/scans/latest'] });
+      
+      toast({
+        title: "Exit Clear",
+        description: "The exit has been marked as clear"
+      });
+      
+      // Return to home with success indicator
+      navigate('/?status=clear');
+      
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save scan",
         variant: "destructive"
       });
     }
@@ -157,25 +202,62 @@ export default function CameraPage() {
         <DetectionOverlay />
       )}
       
-      {/* Camera controls */}
-      <div className="absolute bottom-6 left-0 w-full flex justify-center space-x-6">
-        <Button 
-          onClick={captureImage}
-          className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 shadow-lg"
-          size="xl"
-        >
-          <Camera className="h-8 w-8" />
-        </Button>
-        
-        <Button
-          onClick={() => navigate('/')}
-          className="w-12 h-12 rounded-full bg-white text-black hover:bg-gray-100 shadow-lg"
-          size="xl"
-          variant="outline"
-        >
-          <X className="h-6 w-6" />
-        </Button>
-      </div>
+      {isScanning && (
+        <WarningOverlay />
+      )}
+      
+      {/* Exit options */}
+      {showExitOptions && (
+        <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20">
+          <div className="text-white text-center mb-8">
+            <h2 className="text-2xl font-bold mb-2">Assessment Result</h2>
+            <p>Is this exit blocked or clear?</p>
+          </div>
+          
+          <div className="flex space-x-4">
+            <Button
+              onClick={handleBlockedExit}
+              className="w-40 h-16 bg-red-600 hover:bg-red-700 shadow-lg"
+              size="lg"
+            >
+              <XCircle className="h-6 w-6 mr-2" />
+              Blocked Exit
+            </Button>
+            
+            <Button
+              onClick={handleClearExit}
+              className="w-40 h-16 bg-green-600 hover:bg-green-700 shadow-lg"
+              size="lg"
+            >
+              <CheckCircle2 className="h-6 w-6 mr-2" />
+              Exit is Clear
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      {/* Camera controls - only show when not scanning or showing options */}
+      {!isScanning && !showExitOptions && (
+        <div className="absolute bottom-6 left-0 w-full flex justify-center space-x-6">
+          <Button 
+            onClick={captureImage}
+            className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 shadow-lg"
+            size="xl"
+            disabled={isScanning}
+          >
+            <Camera className="h-8 w-8" />
+          </Button>
+          
+          <Button
+            onClick={() => navigate('/')}
+            className="w-12 h-12 rounded-full bg-white text-black hover:bg-gray-100 shadow-lg"
+            size="xl"
+            variant="outline"
+          >
+            <X className="h-6 w-6" />
+          </Button>
+        </div>
+      )}
       
       {showDetectionModal && (
         <DetectionModal
