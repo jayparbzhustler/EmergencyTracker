@@ -1,0 +1,57 @@
+App Goal: To create a mobile application that allows users to quickly check for blocked emergency exits in a warehouse or production environment by using the device's camera. If a blocked exit is detected, the app should notify a designated person via email or message, including the date, time, and a picture of the blockage.
+
+Feature: Blocked Emergency Exit Detection
+
+1. Functional Requirements:
+
+Initiate Scan: The app should have a prominent button or mode that allows the user to initiate a scan for blocked emergency exits. This should be easily accessible on the main screen.
+Camera Access: Upon initiating the scan, the app must access the device's camera. The camera view should be displayed to the user, allowing them to point the device at emergency exits.
+Image Analysis:
+The app should perform real-time or near real-time analysis of the camera feed or a captured image to identify emergency exit signs.
+The app should also identify potential obstructions such as boxes, pallets, and machinery that are in close visual proximity to a detected emergency exit sign.
+Detection Criteria for "Blocked": An emergency exit should be considered "blocked" if a box, pallet, or piece of machinery is visually very close to or directly obstructing the view of the emergency exit doorway in the camera feed or captured image.
+Notification Settings:
+The app should provide a clear option (e.g., a settings screen or a prompt on first use) for the user to input the email address or phone number of the person who should receive notifications about blocked exits. This setting should be saved within the app.
+Notification Content: When a blocked emergency exit is detected:
+The app should record the current date and time.
+The app should capture a picture from the camera at the moment of detection, clearly showing the blocked exit and the obstruction.
+The app should generate a notification (either an email or a message, depending on the user's input in the settings).
+
+The notification should include:
+
+A subject line indicating "Blocked Emergency Exit Detected."
+The date and time of detection.
+A message indicating that an emergency exit has been detected as blocked.
+The captured picture of the blocked exit should be attached to the email or included in the message (if MMS is used for phone numbers).
+Notification Method: The app should use the device's built-in email or messaging capabilities to send the notification to the specified recipient.
+
+2. User Interface (UI) Requirements:
+
+Main Screen: Should have a prominent button labeled "Check Emergency Exits" or with a recognizable icon.
+Camera View: When the "Check Emergency Exits" button is tapped, the app should display a full-screen camera view.
+Visual Feedback:
+When a blocked emergency exit is detected, the app should provide immediate visual feedback on the screen. This could include:
+Highlighting the detected emergency exit sign with a red outline.
+Drawing a red box around the obstructing object(s).
+Briefly displaying an overlay message like "Blocked!" or "Obstruction Detected."
+
+Notification Settings Prompt:
+
+On the first use of the "Check Emergency Exits" feature, or if the notification recipient information is not yet set, the app should display a clear and concise prompt (e.g., a banner at the bottom of the screen or a pop-up) guiding the user to the settings to input the notification email or phone number.
+
+3. Non-Functional Requirements:
+
+Performance: The app should be responsive, and the detection of blocked exits should happen quickly to facilitate quick checks as users walk by.
+Accuracy: The app should aim for a high level of accuracy in identifying both emergency exits and obstructions, minimizing false positives (detecting a blockage when there isn't one) and false negatives (failing to detect a blockage).
+Usability: The app should be intuitive and easy to use, requiring minimal steps to perform a check.
+
+4. Technology Considerations (for the AI Code Builder):
+
+Platform: Specify whether the app should be built for iOS, Android, or both.
+AI Model: Recommend using an object detection model (like YOLO, SSD, or a similar architecture) for identifying emergency exit signs and the specified obstructions.
+AI Framework: Suggest using a mobile-friendly AI framework such as TensorFlow Lite (for Android and potentially iOS) or Core ML (for iOS) to run the trained model on the device.
+Programming Languages: Specify the preferred programming languages (e.g., Kotlin or Java for Android, Swift for iOS, or a cross-platform language like Dart for Flutter or JavaScript for React Native).
+
+Instructions for the AI Code Builder:
+
+"Please build a mobile application for iOS and Android, that implements the following functionality for detecting blocked emergency exits: [Include all the details from the Functional, UI, and Non-Functional Requirements sections above]. The application should use the device's camera to identify emergency exit signs and obstructions like boxes, pallets, and machinery. When an obstruction is visually close to or blocking an exit, the app should notify a designated email address or phone number (configurable by the user) with the date, time, and a picture of the blocked exit, using the device's built-in notification capabilities. The user interface should be simple and allow for quick checks."
