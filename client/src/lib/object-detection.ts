@@ -1,28 +1,31 @@
 import * as tf from '@tensorflow/tfjs';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
+
+// Define our detection types
+interface Detection {
+  class: string;
+  score: number;
+  bbox: number[];
+  originalClass?: string;
+  isBlocked?: boolean;
+  isBlocking?: boolean;
+}
 
 // Initialize model - will load when first detection is requested
-let model: tf.GraphModel | null = null;
+let model: cocoSsd.ObjectDetection | null = null;
 
-// Object classes that can be detected
-const CLASSES = [
-  'background',
-  'exit_sign',
-  'obstruction',
-  'box',
-  'pallet',
-  'machinery'
-];
+// Exit sign and obstruction classes for our application
+const EXIT_SIGN_CLASSES = ['door', 'exit sign', 'sign'];
+const OBSTRUCTION_CLASSES = ['person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck', 'chair', 
+                          'couch', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'suitcase',
+                          'backpack', 'handbag', 'sports ball', 'kite', 'skateboard'];
 
 // Function to load the model if not already loaded
-async function loadModel() {
+async function loadModel(): Promise<cocoSsd.ObjectDetection> {
   if (!model) {
     try {
-      // Load model from TensorFlow Hub
-      // Using a pre-trained SSD MobileNet for object detection
-      model = await tf.loadGraphModel(
-        'https://tfhub.dev/tensorflow/ssd_mobilenet_v2/2',
-        { fromTFHub: true }
-      );
+      // Load COCO-SSD model
+      model = await cocoSsd.load();
       console.log('Model loaded successfully');
     } catch (error) {
       console.error('Failed to load model:', error);
@@ -33,79 +36,66 @@ async function loadModel() {
 }
 
 // Main detection function
-export async function detectObjects(canvas: HTMLCanvasElement) {
-  // Ensure model is loaded
-  const detectionModel = await loadModel();
-  
-  // Get image data from canvas
-  const imageData = tf.browser.fromPixels(canvas);
-  
-  // Preprocessing - resize and normalize
-  const input = tf.image.resizeBilinear(imageData, [300, 300])
-    .div(255.0)
-    .expandDims(0);
-  
-  // Perform detection
-  const result = await detectionModel.executeAsync(input) as tf.Tensor[];
-  
-  // Process results
-  const boxes = await result[1].dataSync();
-  const scores = await result[2].dataSync();
-  const classes = await result[5].dataSync();
-  
-  // Clean up tensors
-  tf.dispose(result);
-  tf.dispose(input);
-  tf.dispose(imageData);
-  
-  // Prepare results array
-  const detections = [];
-  
-  // Map detected objects to our CLASSES
-  for (let i = 0; i < scores.length; i++) {
-    // Only include detections with confidence above 0.5
-    if (scores[i] > 0.5) {
-      // Map class index to our application classes
-      let classIndex = Math.min(parseInt(classes[i].toString()), CLASSES.length - 1);
-      let className = CLASSES[classIndex];
+export async function detectObjects(canvas: HTMLCanvasElement): Promise<Detection[]> {
+  try {
+    // Ensure model is loaded
+    const detectionModel = await loadModel();
+    
+    if (!detectionModel) {
+      console.error('Model failed to load');
+      return [];
+    }
+    
+    // Perform detection directly on the canvas element
+    const predictions = await detectionModel.detect(canvas);
+    
+    // Map COCO-SSD predictions to our application's format
+    const detections: Detection[] = predictions.map(prediction => {
+      // Determine if this is an exit sign or obstruction based on class
+      let mappedClass = 'unknown';
       
-      // Map certain types of obstructions to the generic "obstruction" class
-      if (['box', 'pallet', 'machinery'].includes(className)) {
-        className = 'obstruction';
+      if (EXIT_SIGN_CLASSES.includes(prediction.class.toLowerCase())) {
+        mappedClass = 'exit_sign';
+      } else if (OBSTRUCTION_CLASSES.includes(prediction.class.toLowerCase())) {
+        mappedClass = 'obstruction';
       }
       
-      // Extract bounding box
-      const [y1, x1, y2, x2] = [
-        boxes[i * 4] * canvas.height,
-        boxes[i * 4 + 1] * canvas.width,
-        boxes[i * 4 + 2] * canvas.height,
-        boxes[i * 4 + 3] * canvas.width,
-      ];
+      // Extract bounding box [x, y, width, height]
+      const [x, y, width, height] = prediction.bbox;
       
-      detections.push({
-        class: className,
-        score: scores[i],
-        bbox: [x1, y1, x2 - x1, y2 - y1]
-      });
-    }
-  }
-  
-  // Determine if an exit is blocked by checking for overlaps
-  const exitSigns = detections.filter(d => d.class === 'exit_sign');
-  const obstructions = detections.filter(d => d.class === 'obstruction');
-  
-  // Check for overlaps between exit signs and obstructions
-  for (const exit of exitSigns) {
-    for (const obstruction of obstructions) {
-      if (checkOverlap(exit.bbox, obstruction.bbox)) {
-        // Add a flag to both objects indicating they're part of a blocked exit
-        exit.isBlocked = true;
-        obstruction.isBlocking = true;
+      return {
+        class: mappedClass,
+        score: prediction.score,
+        bbox: [x, y, width, height],
+        originalClass: prediction.class,
+        isBlocked: false,
+        isBlocking: false
+      };
+    });
+    
+    // Filter out unknown classes
+    const filteredDetections = detections.filter(d => d.class !== 'unknown');
+    
+    // Determine if an exit is blocked by checking for overlaps
+    const exitSigns = filteredDetections.filter(d => d.class === 'exit_sign');
+    const obstructions = filteredDetections.filter(d => d.class === 'obstruction');
+    
+    // Check for overlaps between exit signs and obstructions
+    for (const exit of exitSigns) {
+      for (const obstruction of obstructions) {
+        if (checkOverlap(exit.bbox, obstruction.bbox)) {
+          // Add a flag to both objects indicating they're part of a blocked exit
+          exit.isBlocked = true;
+          obstruction.isBlocking = true;
+        }
       }
     }
+    
+    return filteredDetections;
+  } catch (error) {
+    console.error('Detection error:', error);
+    return [];
   }
-  
-  return detections;
 }
 
 // Helper function to check if two bounding boxes overlap
