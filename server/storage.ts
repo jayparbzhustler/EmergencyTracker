@@ -4,6 +4,8 @@ import {
   scans, type Scan, type InsertScan,
   notifications, type Notification, type InsertNotification
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods (keeping from template)
@@ -24,91 +26,89 @@ export interface IStorage {
   updateNotificationStatus(id: number, status: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private settingsData: Settings | undefined;
-  private scansData: Map<number, Scan>;
-  private notificationsData: Map<number, Notification>;
-  
-  currentId: number;
-  scanId: number;
-  notificationId: number;
-
-  constructor() {
-    this.users = new Map();
-    this.scansData = new Map();
-    this.notificationsData = new Map();
-    this.currentId = 1;
-    this.scanId = 1;
-    this.notificationId = 1;
-  }
-
-  // User methods (keeping from template)
+export class DatabaseStorage implements IStorage {
+  // User methods
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     return user;
   }
   
   // Settings methods
   async getSettings(): Promise<Settings | undefined> {
-    return this.settingsData;
+    const allSettings = await db.select().from(settings);
+    // Always return the first settings record or undefined if none exists
+    return allSettings.length > 0 ? allSettings[0] : undefined;
   }
   
   async saveSettings(insertSettings: InsertSettings): Promise<Settings> {
-    const settings: Settings = { ...insertSettings, id: 1 };
-    this.settingsData = settings;
-    return settings;
+    // Check if settings already exist
+    const existingSettings = await this.getSettings();
+    
+    if (existingSettings) {
+      // Update existing settings
+      const [updated] = await db
+        .update(settings)
+        .set(insertSettings)
+        .where(eq(settings.id, existingSettings.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new settings
+      const [created] = await db
+        .insert(settings)
+        .values(insertSettings)
+        .returning();
+      return created;
+    }
   }
   
   // Scan methods
   async createScan(insertScan: InsertScan): Promise<Scan> {
-    const id = this.scanId++;
-    const scan: Scan = { ...insertScan, id };
-    this.scansData.set(id, scan);
+    const [scan] = await db
+      .insert(scans)
+      .values(insertScan)
+      .returning();
     return scan;
   }
   
   async getLatestScan(): Promise<Scan | undefined> {
-    const scans = Array.from(this.scansData.values());
-    if (scans.length === 0) {
-      return undefined;
-    }
+    const [latestScan] = await db
+      .select()
+      .from(scans)
+      .orderBy(desc(scans.timestamp))
+      .limit(1);
     
-    // Sort by timestamp descending
-    return scans.sort((a, b) => {
-      const dateA = new Date(a.timestamp).getTime();
-      const dateB = new Date(b.timestamp).getTime();
-      return dateB - dateA;
-    })[0];
+    return latestScan || undefined;
   }
   
   // Notification methods
   async createNotification(insertNotification: InsertNotification): Promise<Notification> {
-    const id = this.notificationId++;
-    const notification: Notification = { ...insertNotification, id };
-    this.notificationsData.set(id, notification);
+    const [notification] = await db
+      .insert(notifications)
+      .values(insertNotification)
+      .returning();
     return notification;
   }
   
   async updateNotificationStatus(id: number, status: string): Promise<void> {
-    const notification = this.notificationsData.get(id);
-    if (notification) {
-      notification.status = status;
-      this.notificationsData.set(id, notification);
-    }
+    await db
+      .update(notifications)
+      .set({ status })
+      .where(eq(notifications.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

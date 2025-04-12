@@ -1,6 +1,7 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, foreignKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // User account schema - keeping this from template
 export const users = pgTable("users", {
@@ -33,7 +34,16 @@ export const scans = pgTable("scans", {
   timestamp: timestamp("timestamp").notNull(),
   blocked: boolean("blocked").default(false),
   imageUrl: text("image_url"),
+  userId: integer("user_id").references(() => users.id),
 });
+
+export const scansRelations = relations(scans, ({ one, many }) => ({
+  user: one(users, {
+    fields: [scans.userId],
+    references: [users.id],
+  }),
+  notifications: many(notifications),
+}));
 
 export const insertScanSchema = createInsertSchema(scans).omit({
   id: true,
@@ -46,11 +56,30 @@ export const notifications = pgTable("notifications", {
   recipient: text("recipient"),
   status: text("status").default("sent"),
   imageUrl: text("image_url"),
+  userId: integer("user_id").references(() => users.id),
+  scanId: integer("scan_id").references(() => scans.id),
 });
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  scan: one(scans, {
+    fields: [notifications.scanId],
+    references: [scans.id],
+  }),
+}));
 
 export const insertNotificationSchema = createInsertSchema(notifications).omit({
   id: true,
 });
+
+// Define all relations after all tables are defined to avoid circular references
+export const usersRelations = relations(users, ({ many }) => ({
+  scans: many(scans),
+  notifications: many(notifications),
+}));
 
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
