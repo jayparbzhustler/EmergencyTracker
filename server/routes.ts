@@ -63,15 +63,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save a new scan
   app.post("/api/scans", async (req, res) => {
     try {
-      const validatedData = insertScanSchema.parse(req.body);
-      const scan = await storage.createScan(validatedData);
+      // Manual validation to convert string timestamp to Date object
+      const { timestamp, blocked, imageUrl } = req.body;
+      
+      // Create a valid object with a proper Date
+      const validData = {
+        timestamp: new Date(timestamp),
+        blocked: !!blocked,
+        imageUrl: imageUrl || null,
+        userId: null
+      };
+      
+      // Create the scan
+      const scan = await storage.createScan(validData);
       res.json(scan);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ message: "Invalid scan data", errors: error.errors });
-      } else {
-        res.status(500).json({ message: "Failed to save scan" });
-      }
+      console.error("Scan creation error:", error);
+      res.status(500).json({ message: "Failed to save scan" });
     }
   });
 

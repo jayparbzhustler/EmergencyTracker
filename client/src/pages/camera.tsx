@@ -115,79 +115,123 @@ export default function CameraPage() {
   };
   
   // Handle "Exit is clear" option
-  const handleClearExit = async () => {
+  const handleClearExit = () => {
     try {
       if (!capturedImage) return;
       
-      // Save scan record as clear
-      const timestamp = new Date().toISOString();
-      await apiRequest('POST', '/api/scans', {
-        timestamp,
-        blocked: false,
-        imageUrl: capturedImage
-      });
+      // First save the scan with a success handler that will navigate after saving
+      const saveAndRedirect = async () => {
+        try {
+          // Save scan record as clear
+          const timestamp = new Date().toISOString();
+          await apiRequest('POST', '/api/scans', {
+            timestamp,
+            blocked: false,
+            imageUrl: capturedImage
+          });
+          
+          console.log("Scan saved successfully, redirecting to home");
+          
+          // Navigate to home with clear status
+          window.location.href = '/?status=clear';
+        } catch (error) {
+          console.error("Error saving scan:", error);
+          toast({
+            title: "Error",
+            description: "Failed to save scan, but redirecting anyway",
+            variant: "destructive"
+          });
+          
+          // Even if save fails, still redirect
+          window.location.href = '/?status=clear';
+        }
+      };
       
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/scans/latest'] });
-      
+      // Show feedback to user
       toast({
         title: "Exit Clear",
         description: "The exit has been marked as clear"
       });
       
-      // Close options and return to home with success indicator
+      // Hide the exit options UI
       setShowExitOptions(false);
       
-      // Use the navigate function with absolute path to ensure correct navigation
-      // The leading slash ensures we go to the root with the status parameter
-      window.location.href = '/?status=clear';
+      // Call the async function to save and redirect
+      saveAndRedirect();
       
     } catch (error) {
-      console.error("Error saving clear exit:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save scan",
-        variant: "destructive"
-      });
+      console.error("Error in handleClearExit:", error);
+      
+      // Fallback redirection
+      window.location.href = '/?status=clear';
     }
   };
 
-  const sendNotification = async () => {
+  const sendNotification = () => {
     try {
-      // Send notification with captured image
       if (!capturedImage) return;
       
-      const timestamp = new Date().toISOString();
-      await apiRequest('POST', '/api/notifications', {
-        image: capturedImage,
-        timestamp,
-        blocked: true
-      });
-      
-      // Save scan record
-      await apiRequest('POST', '/api/scans', {
-        timestamp,
-        blocked: true,
-        imageUrl: capturedImage
-      });
-      
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/scans/latest'] });
-      
+      // Show feedback to user immediately
       toast({
-        title: "Notification Sent",
-        description: "The safety team has been notified"
+        title: "Sending Notification",
+        description: "Alerting the safety team..."
       });
       
-      // Close modal and return to home
+      // First close the modal so UI doesn't freeze
       setShowDetectionModal(false);
-      navigate('/');
+      
+      // Then process notification and navigate in background
+      const processAndNavigate = async () => {
+        try {
+          const timestamp = new Date().toISOString();
+          
+          // Send notification first
+          await apiRequest('POST', '/api/notifications', {
+            image: capturedImage,
+            timestamp,
+            blocked: true
+          });
+          
+          // Then save scan record
+          await apiRequest('POST', '/api/scans', {
+            timestamp,
+            blocked: true,
+            imageUrl: capturedImage
+          });
+          
+          console.log("Notification sent successfully");
+          
+          // Show success message
+          toast({
+            title: "Notification Sent",
+            description: "The safety team has been notified"
+          });
+          
+          // Redirect to home screen
+          window.location.href = '/';
+        } catch (error) {
+          console.error("Error sending notification:", error);
+          
+          toast({
+            title: "Error",
+            description: "Failed to send notification, but returning home",
+            variant: "destructive"
+          });
+          
+          // Still redirect to home on error
+          window.location.href = '/';
+        }
+      };
+      
+      // Start the async process
+      processAndNavigate();
+      
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send notification",
-        variant: "destructive"
-      });
+      console.error("Error in sendNotification:", error);
+      
+      // Fallback redirection
+      setShowDetectionModal(false);
+      window.location.href = '/';
     }
   };
 
